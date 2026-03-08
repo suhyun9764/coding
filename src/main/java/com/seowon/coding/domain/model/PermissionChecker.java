@@ -19,30 +19,37 @@ class PermissionChecker {
             List<UserGroup> groups,
             List<Policy> policies
     ) {
-        for (User user : users) {
-            if (user.id.equals(userId)) {
-                for (String groupId : user.groupIds) {
-                    for (UserGroup group : groups) {
-                        if (group.id.equals(groupId)) {
-                            for (String policyId : group.policyIds) {
-                                for (Policy policy : policies) {
-                                    if (policy.id.equals(policyId)) {
-                                        for (Statement statement : policy.statements) {
-                                            if (statement.actions.contains(targetAction) &&
-                                                statement.resources.contains(targetResource)) {
-                                                return true;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+        User user = findUser(users, userId);
+        List<UserGroup> userGroups = findUserGroups(groups, user);
+
+        List<Policy> matchPolices = policies.stream().
+                filter(policy -> policy.hasMatchStatement(targetAction, targetResource))
+                .toList();
+
+        for(UserGroup userGroup : userGroups){
+            List<String> policyIds = userGroup.policyIds;
+            for(String policyId : policyIds){
+                return matchPolices.stream().map(policy -> policy.id)
+                        .anyMatch(id->id.equals(policyId));
             }
+
         }
+
         return false;
     }
+
+    private static List<UserGroup> findUserGroups(List<UserGroup> groups, User user) {
+        return groups.stream()
+                .filter(group -> user.groupIds.contains(group.id))
+                .toList();
+    }
+
+    private static User findUser(List<User> users, String userId) {
+        return users.stream()
+                .filter(user -> user.id.equals(userId))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다"));
+    }
+
 }
 
 class User {
@@ -73,6 +80,11 @@ class Policy {
         this.id = id;
         this.statements = statements;
     }
+
+    public boolean hasMatchStatement(String targetAction, String targetResource){
+        return statements.stream()
+                .anyMatch(statement -> statement.isMatchStatement(targetAction,targetResource));
+    }
 }
 
 class Statement {
@@ -83,5 +95,10 @@ class Statement {
     public Statement(List<String> actions, List<String> resources) {
         this.actions = actions;
         this.resources = resources;
+    }
+
+    public boolean isMatchStatement(String targetAction, String targetResource){
+        return actions.contains(targetAction) &&
+                resources.contains(targetResource);
     }
 }
