@@ -64,14 +64,20 @@ public class OrderService {
         // * order 를 저장 v
         // * 각 Product 의 재고를 수정 v
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        validateOrderRequest(productIds, quantities);
+        validateOrderRequest(customerName, customerEmail, productIds, quantities);
         Order newOrder = createNewOrder(customerName, customerEmail);
         addOrderItemsToOrder(productIds, quantities, newOrder);
 
         return orderRepository.save(newOrder);
     }
 
-    private static void validateOrderRequest(List<Long> productIds, List<Integer> quantities) {
+    private static void validateOrderRequest(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
+        if(customerName==null || customerEmail == null)
+            throw new IllegalArgumentException("사용자 정보가 누락되었습니다.");
+
+        if(productIds.isEmpty() || quantities.isEmpty())
+            throw new IllegalArgumentException("주문 정보가 누락되었습니다.");
+
         if (productIds.size() != quantities.size())
             throw new IllegalArgumentException("제품 아이디와 수량 정보가 일치하지 않습니다");
     }
@@ -82,21 +88,27 @@ public class OrderService {
                 .customerEmail(customerEmail)
                 .status(Order.OrderStatus.PENDING)
                 .orderDate(LocalDateTime.now())
+                .totalAmount(BigDecimal.ZERO)
                 .build();
     }
 
     private void addOrderItemsToOrder(List<Long> productIds, List<Integer> quantities, Order newOrder) {
         for (int i = 0; i < productIds.size(); i++) {
-            OrderItem orderItem = createOrderItem(productIds, quantities, i);
+            Long productId = productIds.get(i);
+            Integer quantity = quantities.get(i);
+            OrderItem orderItem = createOrderItem(productId, quantity);
             newOrder.addItem(orderItem);
         }
     }
 
-    private OrderItem createOrderItem(List<Long> productIds, List<Integer> quantities, int i) {
-        Long productId = productIds.get(i);
-        Product product = productRepository.findById(productId).orElseThrow(IllegalArgumentException::new);
-        Integer quantity = quantities.get(i);
-        product.decreaseStock(quantity);
+    private OrderItem createOrderItem(Long productId, int quantity) {
+        Product product = productRepository.findById(productId).orElseThrow(
+                ()-> new IllegalArgumentException("존재하지 않는 제품입니다")
+        );
+
+        if(product.getStockQuantity()<quantity)
+            throw new IllegalArgumentException("재고가 부족합니다");
+
         return OrderItem.builder()
                 .product(product)
                 .quantity(quantity)
