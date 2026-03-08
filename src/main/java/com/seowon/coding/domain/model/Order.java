@@ -1,6 +1,7 @@
 package com.seowon.coding.domain.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,9 +23,11 @@ public class Order {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
+    @NotNull
     private String customerName;
-    
+
+    @NotNull
     private String customerEmail;
     
     @Enumerated(EnumType.STRING)
@@ -56,11 +59,18 @@ public class Order {
                 .map(OrderItem::getSubtotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
+
+    public void applyDiscount(String coupon) {
+        BigDecimal shipping = getShipping();
+        BigDecimal discount = getDiscount(coupon);
+        setTotalAmount(getTotalAmount().add(shipping).subtract(discount));
+    }
     
     public void markAsProcessing() {
         this.status = OrderStatus.PROCESSING;
     }
-    
+
+
     public void markAsShipped() {
         this.status = OrderStatus.SHIPPED;
     }
@@ -76,4 +86,14 @@ public class Order {
     public enum OrderStatus {
         PENDING, PROCESSING, SHIPPED, DELIVERED, CANCELLED
     }
+
+    private BigDecimal getShipping() {
+        BigDecimal subtotal = getTotalAmount();
+        return subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
+    }
+
+    private BigDecimal getDiscount(String couponCode) {
+        return (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
+    }
+
 }

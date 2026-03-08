@@ -72,10 +72,10 @@ public class OrderService {
     }
 
     private static void validateOrderRequest(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
-        if(customerName==null || customerEmail == null)
+        if (customerName == null || customerEmail == null)
             throw new IllegalArgumentException("사용자 정보가 누락되었습니다.");
 
-        if(productIds.isEmpty() || quantities.isEmpty())
+        if (productIds.isEmpty() || quantities.isEmpty())
             throw new IllegalArgumentException("주문 정보가 누락되었습니다.");
 
         if (productIds.size() != quantities.size())
@@ -103,10 +103,10 @@ public class OrderService {
 
     private OrderItem createOrderItem(Long productId, int quantity) {
         Product product = productRepository.findById(productId).orElseThrow(
-                ()-> new IllegalArgumentException("존재하지 않는 제품입니다")
+                () -> new IllegalArgumentException("존재하지 않는 제품입니다")
         );
 
-        if(product.getStockQuantity()<quantity)
+        if (product.getStockQuantity() < quantity)
             throw new IllegalArgumentException("재고가 부족합니다");
 
         return OrderItem.builder()
@@ -125,12 +125,6 @@ public class OrderService {
                                String customerEmail,
                                List<OrderProduct> orderProducts,
                                String couponCode) {
-        if (customerName == null || customerEmail == null) {
-            throw new IllegalArgumentException("customer info required");
-        }
-        if (orderProducts == null || orderProducts.isEmpty()) {
-            throw new IllegalArgumentException("orderReqs invalid");
-        }
 
         Order order = Order.builder()
                 .customerName(customerName)
@@ -141,20 +135,12 @@ public class OrderService {
                 .totalAmount(BigDecimal.ZERO)
                 .build();
 
-
-        BigDecimal subtotal = BigDecimal.ZERO;
         for (OrderProduct req : orderProducts) {
             Long pid = req.getProductId();
             int qty = req.getQuantity();
 
             Product product = productRepository.findById(pid)
                     .orElseThrow(() -> new IllegalArgumentException("Product not found: " + pid));
-            if (qty <= 0) {
-                throw new IllegalArgumentException("quantity must be positive: " + qty);
-            }
-            if (product.getStockQuantity() < qty) {
-                throw new IllegalStateException("insufficient stock for product " + pid);
-            }
 
             OrderItem item = OrderItem.builder()
                     .order(order)
@@ -165,16 +151,14 @@ public class OrderService {
             order.getItems().add(item);
 
             product.decreaseStock(qty);
-            subtotal = subtotal.add(product.getPrice().multiply(BigDecimal.valueOf(qty)));
         }
-
-        BigDecimal shipping = subtotal.compareTo(new BigDecimal("100.00")) >= 0 ? BigDecimal.ZERO : new BigDecimal("5.00");
-        BigDecimal discount = (couponCode != null && couponCode.startsWith("SALE")) ? new BigDecimal("10.00") : BigDecimal.ZERO;
-
-        order.setTotalAmount(subtotal.add(shipping).subtract(discount));
-        order.setStatus(Order.OrderStatus.PROCESSING);
+        order.applyDiscount(couponCode);
+        order.markAsProcessing();
         return orderRepository.save(order);
     }
+
+
+
 
     /**
      * TODO #5: 코드 리뷰 - 장시간 작업을 간주하여 진행률 저장을 위한 트랜잭션 분리
