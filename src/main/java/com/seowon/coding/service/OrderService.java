@@ -22,21 +22,21 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional
 public class OrderService {
-    
+
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final ProcessingStatusRepository processingStatusRepository;
-    
+
     @Transactional(readOnly = true)
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
     }
-    
+
     @Transactional(readOnly = true)
     public Optional<Order> getOrderById(Long id) {
         return orderRepository.findById(id);
     }
-    
+
 
     public Order updateOrder(Long id, Order order) {
         if (!orderRepository.existsById(id)) {
@@ -45,7 +45,7 @@ public class OrderService {
         order.setId(id);
         return orderRepository.save(order);
     }
-    
+
     public void deleteOrder(Long id) {
         if (!orderRepository.existsById(id)) {
             throw new RuntimeException("Order not found with id: " + id);
@@ -54,17 +54,54 @@ public class OrderService {
     }
 
 
-
+    @Transactional
     public Order placeOrder(String customerName, String customerEmail, List<Long> productIds, List<Integer> quantities) {
         // TODO #3: 구현 항목
         // * 주어진 고객 정보로 새 Order를 생성
-        // * 지정된 Product를 주문에 추가
-        // * order 의 상태를 PENDING 으로 변경
-        // * orderDate 를 현재시간으로 설정
-        // * order 를 저장
-        // * 각 Product 의 재고를 수정
+        // * 지정된 Product를 주문에 추가 v
+        // * order 의 상태를 PENDING 으로 변경 v
+        // * orderDate 를 현재시간으로 설정 v
+        // * order 를 저장 v
+        // * 각 Product 의 재고를 수정 v
         // * placeOrder 메소드의 시그니처는 변경하지 않은 채 구현하세요.
-        return null;
+        validateOrderRequest(productIds, quantities);
+        Order newOrder = createNewOrder(customerName, customerEmail);
+        addOrderItemsToOrder(productIds, quantities, newOrder);
+
+        return orderRepository.save(newOrder);
+    }
+
+    private static void validateOrderRequest(List<Long> productIds, List<Integer> quantities) {
+        if (productIds.size() != quantities.size())
+            throw new IllegalArgumentException("제품 아이디와 수량 정보가 일치하지 않습니다");
+    }
+
+    private static Order createNewOrder(String customerName, String customerEmail) {
+        return Order.builder()
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(Order.OrderStatus.PENDING)
+                .orderDate(LocalDateTime.now())
+                .build();
+    }
+
+    private void addOrderItemsToOrder(List<Long> productIds, List<Integer> quantities, Order newOrder) {
+        for (int i = 0; i < productIds.size(); i++) {
+            OrderItem orderItem = createOrderItem(productIds, quantities, i);
+            newOrder.addItem(orderItem);
+        }
+    }
+
+    private OrderItem createOrderItem(List<Long> productIds, List<Integer> quantities, int i) {
+        Long productId = productIds.get(i);
+        Product product = productRepository.findById(productId).orElseThrow(IllegalArgumentException::new);
+        Integer quantity = quantities.get(i);
+        product.decreaseStock(quantity);
+        return OrderItem.builder()
+                .product(product)
+                .quantity(quantity)
+                .price(product.getPrice())
+                .build();
     }
 
     /**
